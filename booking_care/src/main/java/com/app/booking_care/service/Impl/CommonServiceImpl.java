@@ -19,6 +19,10 @@ public class CommonServiceImpl<T,ID, R extends CommonJpaRepository<T,ID>> implem
         this.repo = repo;
     }
 
+    public R getRepo() {
+        return repo;
+    }
+
     @Override
     public T save(T entity) {
        return repo.save(entity);

@@ -15,4 +15,6 @@ public class QuestionEntity extends BaseEntity{
 
     @Column(name = "content")
     private String content;
+
+
 }

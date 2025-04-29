@@ -7,9 +7,9 @@ import com.app.booking_care.service.QuestionService;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
+
 import java.util.List;
-import java.util.stream.Collectors;
+
 @Service
 public class QuestionServiceImpl extends CommonServiceImpl<QuestionEntity, Long, QuestionRepository> implements QuestionService {
     public QuestionServiceImpl(QuestionRepository repo) {
@@ -29,7 +29,7 @@ public class QuestionServiceImpl extends CommonServiceImpl<QuestionEntity, Long,
     @Override
     public List<QuestionEntity> getAll() {
 
-        return new ArrayList<>(getRepo().findAll());
+        return getRepo().findAll();
     }
 
     @Override
@@ -49,7 +49,14 @@ public class QuestionServiceImpl extends CommonServiceImpl<QuestionEntity, Long,
     }
 
     @Override
-    public Page<QuestionEntity> getAllWithPagingUsingJpa(PagingConditionModel pagingConditionModel) {
-        return null;
+    public Page<QuestionEntity> getAllWithPaging(PagingConditionModel pagingConditionModel) {
+        return getRepo().findAllWithPaging(pagingConditionModel);
+    }
+
+    @Override
+    public QuestionEntity update(Long id, QuestionEntity question) {
+        QuestionEntity questionEntity = getRepo().findById(id).orElseThrow(()-> new RuntimeException("Answer is not found with id" + id) );
+        questionEntity.setContent(question.getContent());
+        return getRepo().save(question);
     }
 }

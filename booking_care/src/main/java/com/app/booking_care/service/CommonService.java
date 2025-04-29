@@ -12,5 +12,6 @@ public interface CommonService<T,ID> {
     void deleteById(ID id);
     boolean existsById(ID id);
     void deleteByIdIn(List<ID> ids);
-    Page<T> getAllWithPagingUsingJpa(PagingConditionModel pagingConditionModel);
+    Page<T> getAllWithPaging(PagingConditionModel pagingConditionModel);
+
 }

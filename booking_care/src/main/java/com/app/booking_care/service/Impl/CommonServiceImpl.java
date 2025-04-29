@@ -58,8 +58,10 @@ public class CommonServiceImpl<T,ID, R extends CommonJpaRepository<T,ID>> implem
     repo.deleteByIdIn(ids);
     }
 
+
+
     @Override
-    public Page<T> getAllWithPagingUsingJpa(PagingConditionModel pagingConditionModel) {
+    public Page<T> getAllWithPaging(PagingConditionModel pagingConditionModel) {
         Pageable pageable = PageRequest.of(pagingConditionModel.getPageCurrent(), pagingConditionModel.getPageSize());
         return repo.findAll(pageable);
     }

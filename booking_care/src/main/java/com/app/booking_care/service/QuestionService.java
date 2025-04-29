@@ -7,7 +7,7 @@ import org.springframework.data.domain.Page;
 import java.util.List;
 
 public interface QuestionService extends CommonService<QuestionEntity, Long> {
-
+    QuestionEntity update(Long id, QuestionEntity question);
 
 
 

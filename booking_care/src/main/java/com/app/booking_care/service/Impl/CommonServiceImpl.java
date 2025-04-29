@@ -60,6 +60,7 @@ public class CommonServiceImpl<T,ID, R extends CommonJpaRepository<T,ID>> implem
 
 
 
+
     @Override
     public Page<T> getAllWithPaging(PagingConditionModel pagingConditionModel) {
         Pageable pageable = PageRequest.of(pagingConditionModel.getPageCurrent(), pagingConditionModel.getPageSize());

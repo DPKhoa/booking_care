@@ -39,4 +39,8 @@ public class NativeQueryComponent {
         newParams[originalParams.length +1 ] = offset;
         return newParams;
     }
+
+    public <T> T queryForSingle(String sql, Class<T> resultType, Object... params) {
+        return jdbcTemplate.queryForObject(sql, resultType, params);
+    }
 }

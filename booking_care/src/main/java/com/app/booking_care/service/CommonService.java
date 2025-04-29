@@ -1,5 +1,6 @@
 package com.app.booking_care.service;
 
+
 import com.app.booking_care.model.PagingConditionModel;
 import org.springframework.data.domain.Page;
 
@@ -12,6 +13,7 @@ public interface CommonService<T,ID> {
     void deleteById(ID id);
     boolean existsById(ID id);
     void deleteByIdIn(List<ID> ids);
+
     Page<T> getAllWithPaging(PagingConditionModel pagingConditionModel);
 
 }

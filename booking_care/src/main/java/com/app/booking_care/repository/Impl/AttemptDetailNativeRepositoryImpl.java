@@ -32,8 +32,8 @@ public class AttemptDetailNativeRepositoryImpl implements AttemptDetailNativeRep
     public Long calculateTotalScore(Long attemptId) {
         String sql = """
                 SELECT COALESCE(SUM(a.score), 0)
-                FROM AttemptDetail ad
-                JOIN Answer a ON ad.answer_id = a.id
+                FROM attempt_detail ad
+                JOIN answer a ON ad.answer_id = a.id
                 WHERE ad.attempt_id = ?
                 """;
         Object[] params = new Object[]{attemptId};

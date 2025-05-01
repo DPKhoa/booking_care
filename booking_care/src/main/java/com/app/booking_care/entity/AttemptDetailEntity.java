@@ -24,8 +24,6 @@ public class AttemptDetailEntity extends BaseEntity {
     @Column(name = "answer_id")
     private Long answerId;
 
-    @Column(name = "created_date")
-    private LocalDateTime createdDate;
 
 
 }

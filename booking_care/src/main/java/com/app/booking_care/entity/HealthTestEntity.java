@@ -8,7 +8,7 @@ import lombok.Setter;
 @Table(name = "healthtest")
 @Getter
 @Setter
-public class HealthTestEntity {
+public class HealthTestEntity extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

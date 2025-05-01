@@ -71,7 +71,7 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
 
     @Override
     public List<TestAttemptEntity> getAll() {
-        return List.of();
+        return getRepo().findAll();
     }
 
     @Override

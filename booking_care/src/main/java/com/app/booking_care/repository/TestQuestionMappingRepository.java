@@ -6,7 +6,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-public interface TestQuestionMappingRepository extends CommonJpaRepository<TestQuestionMappingEntity,Long>, TestQuestionMappingNativeRepository {
-    @Query("SELECT tqm.questionId FROM TestQuestionMappingEntity tqm WHERE tqm.testId = :testId AND tqm.questionId NOT IN :questionIds")
+public interface TestQuestionMappingRepository extends CommonJpaRepository<TestQuestionMappingEntity,Long> {
+    @Query("SELECT tqm FROM TestQuestionMappingEntity tqm WHERE tqm.testId = :testId")
     List<TestQuestionMappingEntity> findAllByTestId(@Param("testId") Long testId);
 }

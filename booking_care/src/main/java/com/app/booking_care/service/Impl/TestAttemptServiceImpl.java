@@ -1,14 +1,18 @@
 package com.app.booking_care.service.Impl;
 
+import com.app.booking_care.constant.AppMessageConstant;
 import com.app.booking_care.entity.AttemptDetailEntity;
 import com.app.booking_care.entity.TestAttemptEntity;
 import com.app.booking_care.entity.TestQuestionMappingEntity;
+import com.app.booking_care.entity.UserEntity;
+import com.app.booking_care.exception.AppException;
 import com.app.booking_care.model.PagingConditionModel;
 import com.app.booking_care.model.dto.TestSubmission;
 import com.app.booking_care.model.dto.UserAnswer;
 import com.app.booking_care.repository.AttemptDetailRepository;
 import com.app.booking_care.repository.TestAttemptRepository;
 import com.app.booking_care.repository.TestQuestionMappingRepository;
+import com.app.booking_care.repository.UserRepository;
 import com.app.booking_care.service.TestAttemptService;
 import jakarta.transaction.Transactional;
 
@@ -25,13 +29,15 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
 
     private final AttemptDetailRepository attemptDetailRepository;
     private final TestQuestionMappingRepository testQuestionMappingRepository;
+    private final UserRepository userRepository;
     private static final int BATCH_SIZE = 50; // Kích thước lô cho batch processing
 
-    public TestAttemptServiceImpl(TestAttemptRepository repo, TestAttemptRepository testAttemptRepository, AttemptDetailRepository attemptDetailRepository, TestQuestionMappingRepository testQuestionMappingRepository) {
+    public TestAttemptServiceImpl(TestAttemptRepository repo, AttemptDetailRepository attemptDetailRepository, TestQuestionMappingRepository testQuestionMappingRepository, UserRepository userRepository) {
         super(repo);
 
         this.attemptDetailRepository = attemptDetailRepository;
         this.testQuestionMappingRepository = testQuestionMappingRepository;
+        this.userRepository = userRepository;
     }
 
 
@@ -41,6 +47,15 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
     @Transactional
     public TestAttemptEntity saveTestAttempt(TestSubmission submission) {
 
+        //Kiểm tra người dùng
+        userRepository.findById(submission.getUserId()).orElseThrow(()-> {
+            String errorMessage = String.format(
+                    AppMessageConstant.ENTITY_NOT_FOUND.getMessage(),
+                    submission.getUserId()
+            );
+
+            return AppException.of(AppMessageConstant.ENTITY_NOT_FOUND);
+        });
         //Kiểm tra các questionId có thuộc testID không?
         long testId = submission.getTestId();
         // Bước 2: Lấy danh sách các questionId hợp lệ
@@ -48,15 +63,19 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
         Set<Long> validQuestionIds = mappings.stream()
                 .map(TestQuestionMappingEntity::getQuestionId)
                 .collect(Collectors.toSet());
-        // Bước 3: Kiểm tra tính hợp lệ của questionId theo batch
+
+
         List<UserAnswer> invalidAnswers = new ArrayList<>();
         for (UserAnswer userAnswer : submission.getAnswers()) {
             if (!validQuestionIds.contains(userAnswer.getQuestionId())) {
                 invalidAnswers.add(userAnswer);
             }
         }
+        if (!invalidAnswers.isEmpty()) {
+            throw AppException.of(AppMessageConstant.INVALID_QUESTION_ID);
+        }
+        // Bước 3: Tao luu TestAttempt
 
-        // Bước 4: Tạo và lưu TestAttempt
         TestAttemptEntity testAttempt = TestAttemptEntity.builder()
                 .testId(submission.getTestId())
                 .userId(submission.getUserId())
@@ -66,15 +85,13 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
                 .build();
         testAttempt = getRepo().save(testAttempt);
 
-        // Bước 5: Lưu AttemptDetail theo batch
+        // Bước 4: Lưu AttemptDetail theo batch
         Long attemptId = testAttempt.getId();
         List<AttemptDetailEntity> attemptDetails = new ArrayList<>();
-        for (UserAnswer userAnswer : submission.getAnswers()) {
+        for (TestQuestionMappingEntity mapping : mappings) { // Duyệt qua tất cả câu hỏi hợp lệ
             AttemptDetailEntity attemptDetail = new AttemptDetailEntity();
             attemptDetail.setAttemptId(attemptId);
-            attemptDetail.setQuestionId(userAnswer.getQuestionId());
-            attemptDetail.setAnswerId(userAnswer.getAnswerId());
-            attemptDetails.add(attemptDetail);
+            attemptDetail.setQuestionId(mapping.getQuestionId());
 
             // Lưu theo batch khi đạt kích thước lô
             if (attemptDetails.size() >= BATCH_SIZE) {
@@ -86,8 +103,11 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
         if (!attemptDetails.isEmpty()) {
             attemptDetailRepository.saveAll(attemptDetails);
         }
-        // Bước 3: Tính tổng điểm
+        // Bước 5: Tính tổng điểm
         Long totalScore = attemptDetailRepository.calculateTotalScore(attemptId);
+        if (totalScore == null) {
+            totalScore = 0L; // Xử lý trường hợp không có điểm
+        }
 
         // Bước 7: Cập nhật total_score
         testAttempt.setTotalScore(totalScore);

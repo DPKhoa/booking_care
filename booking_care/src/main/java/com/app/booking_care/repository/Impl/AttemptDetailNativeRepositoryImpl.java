@@ -28,15 +28,5 @@ public class AttemptDetailNativeRepositoryImpl implements AttemptDetailNativeRep
         return queryComponent.findPage(sql,countSql,pageable, AttemptDetailEntity.class,params);
     }
 
-    @Override
-    public Long calculateTotalScore(Long attemptId) {
-        String sql = """
-                SELECT COALESCE(SUM(a.score), 0)
-                FROM attempt_detail ad
-                JOIN answer a ON ad.answer_id = a.id
-                WHERE ad.attempt_id = ?
-                """;
-        Object[] params = new Object[]{attemptId};
-        return queryComponent.queryForSingle(sql, Long.class, params);
-    }
+
 }

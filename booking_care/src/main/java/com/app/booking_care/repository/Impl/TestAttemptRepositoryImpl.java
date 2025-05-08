@@ -18,9 +18,9 @@ public class TestAttemptRepositoryImpl implements TestAttemptNativeRepository {
     @Override
     public Page<TestAttemptEntity> findAllWithPaging(PagingConditionModel pagingConditionModel) {
         String sql = """
-                SELECT * FROM TEST ATTEMPT
+                SELECT * FROM test_attempt
                """;
-        String countSql = "SELECT COUNT(TA.ID) FROM TEST ATTEMPT TA";
+        String countSql = "SELECT COUNT(TA.ID) FROM test_attempt TA";
 
         Object[] params = new Object[]{};
         Pageable pageable = PageRequest.of(pagingConditionModel.getPageCurrent(), pagingConditionModel.getPageSize());

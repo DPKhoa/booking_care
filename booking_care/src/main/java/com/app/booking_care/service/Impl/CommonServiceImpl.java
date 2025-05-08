@@ -19,6 +19,10 @@ public class CommonServiceImpl<T,ID, R extends CommonJpaRepository<T,ID>> implem
         this.repo = repo;
     }
 
+    public R getRepo() {
+        return repo;
+    }
+
     @Override
     public T save(T entity) {
        return repo.save(entity);
@@ -54,8 +58,11 @@ public class CommonServiceImpl<T,ID, R extends CommonJpaRepository<T,ID>> implem
     repo.deleteByIdIn(ids);
     }
 
+
+
+
     @Override
-    public Page<T> getAllWithPagingUsingJpa(PagingConditionModel pagingConditionModel) {
+    public Page<T> getAllWithPaging(PagingConditionModel pagingConditionModel) {
         Pageable pageable = PageRequest.of(pagingConditionModel.getPageCurrent(), pagingConditionModel.getPageSize());
         return repo.findAll(pageable);
     }

@@ -37,7 +37,12 @@ public class UserServiceImpl extends CommonServiceImpl<UserEntity,Long, UserRepo
     }
 
     @Override
-    public boolean existsById(Long aLong) {
+    public boolean existsById(Long  id) {
+         var idExist =getRepo().findById(id).orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+         if(idExist == null){
+            throw new RuntimeException("User not found with id: " + id);
+         }
+
         return false;
     }
 

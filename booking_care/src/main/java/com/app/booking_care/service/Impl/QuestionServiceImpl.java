@@ -40,6 +40,7 @@ public class QuestionServiceImpl extends CommonServiceImpl<QuestionEntity, Long,
 
     @Override
     public boolean existsById(Long questionId) {
+
         return false;
     }
 

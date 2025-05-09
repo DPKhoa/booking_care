@@ -50,7 +50,8 @@ public class CommonServiceImpl<T,ID, R extends CommonJpaRepository<T,ID>> implem
 
     @Override
     public boolean existsById(ID id) {
-        return repo.existsById(id);
+
+        return false;
     }
 
     @Override

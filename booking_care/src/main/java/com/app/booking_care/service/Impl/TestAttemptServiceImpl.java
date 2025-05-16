@@ -1,10 +1,10 @@
 package com.app.booking_care.service.Impl;
 
 import com.app.booking_care.constant.AppMessageConstant;
+import com.app.booking_care.entity.AnswerEntity;
 import com.app.booking_care.entity.AttemptDetailEntity;
 import com.app.booking_care.entity.TestAttemptEntity;
 import com.app.booking_care.entity.TestQuestionMappingEntity;
-import com.app.booking_care.exception.AppException;
 import com.app.booking_care.exception.InvalidInputException;
 import com.app.booking_care.model.ErrorModel;
 import com.app.booking_care.model.PagingConditionModel;
@@ -20,10 +20,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,35 +32,54 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
     private final UserRepository userRepository;
     private static final int BATCH_SIZE = 50; // Kích thước lô cho batch processing
     private final HealthTestRepository healthTestRepository;
+    private final AnswerRepository answerRepository;
 
-    public TestAttemptServiceImpl(TestAttemptRepository repo, AttemptDetailRepository attemptDetailRepository, TestQuestionMappingRepository testQuestionMappingRepository, UserRepository userRepository, HealthTestRepository healthTestRepository) {
+    public TestAttemptServiceImpl(TestAttemptRepository repo, AttemptDetailRepository attemptDetailRepository, TestQuestionMappingRepository testQuestionMappingRepository, UserRepository userRepository, HealthTestRepository healthTestRepository, AnswerRepository answerRepository) {
         super(repo);
 
         this.attemptDetailRepository = attemptDetailRepository;
         this.testQuestionMappingRepository = testQuestionMappingRepository;
         this.userRepository = userRepository;
         this.healthTestRepository = healthTestRepository;
+        this.answerRepository = answerRepository;
     }
 
+    Logger log = LoggerFactory.getLogger(TestAttemptServiceImpl.class);
 
+    private void validateTestSubmission(TestSubmission testSubmission) {
+        if (testSubmission.getUserId() == null) {
+            throw new InvalidInputException(ErrorModel.of(HttpStatus.BAD_REQUEST.value(), "User ID cannot be null"));
+        }
+        if (testSubmission.getTestId() == null) {
+            throw new InvalidInputException(ErrorModel.of(HttpStatus.BAD_REQUEST.value(), "Test ID cannot be null"));
+        }
+        if (testSubmission.getAnswers() == null || testSubmission.getAnswers().isEmpty()) {
+            throw new InvalidInputException(ErrorModel.of(HttpStatus.BAD_REQUEST.value(), "Answers cannot be null or empty"));
+        }
+        if (testSubmission.getAttemptDate() != null && testSubmission.getAttemptDate().isAfter(LocalDateTime.now())) {
+            throw new InvalidInputException(ErrorModel.of(HttpStatus.BAD_REQUEST.value(), "Attempt date cannot be in the future"));
+        }
+    }
 
     //create
     @Override
     @Transactional
     public TestAttemptEntity saveTestAttempt(TestSubmission submission) {
+        if(submission == null){
+            throw new InvalidInputException(ErrorModel.of(HttpStatus.BAD_REQUEST.value(), "Test submission cannot be null"));
+        }
+        validateTestSubmission(submission);
 
-        Logger log = LoggerFactory.getLogger(TestAttemptServiceImpl.class);
-
-        healthTestRepository.findById(submission.getTestId()).orElseThrow(()-> {
+        if(!healthTestRepository.existsById(submission.getTestId())) {
             String errorMessage = String.format(
                     AppMessageConstant.ENTITY_NOT_FOUND.getMessage(),
-                    submission.getUserId()
+                    submission.getTestId()
             );
             log.error(errorMessage);
-            return AppException.of(AppMessageConstant.ENTITY_NOT_FOUND);
-        } );
+            throw new InvalidInputException(AppMessageConstant.USER_NOT_FOUND, submission.getTestId());
+        }
         //Kiểm tra người dùng
-        if(userRepository.existsById(submission.getUserId())){
+        if(!userRepository.existsById(submission.getUserId())){
             String errorMessage = String.format(
                     AppMessageConstant.USER_NOT_FOUND.getMessage(),
                     submission.getUserId()
@@ -72,93 +89,47 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
             throw new InvalidInputException(AppMessageConstant.USER_NOT_FOUND, submission.getUserId());
         };
 
-        // Kiểm tra answers có null hoặc rỗng không
-        if (submission.getAnswers() == null || submission.getAnswers().isEmpty()) {
-            String errorMessage = "Answers cannot be null or empty";
-            log.error(errorMessage);
-            throw new InvalidInputException(ErrorModel.of(HttpStatus.BAD_REQUEST.value(), errorMessage));
-        }
-        // Kiểm tra trùng lặp questionId trong answers
-        Set<Long> questionIds = new HashSet<>();
-        List<Long> duplicateQuestionIds = submission.getAnswers().stream()
-                .map(UserAnswer::getQuestionId)
-                .filter(questionId -> !questionIds.add(questionId))
-                .toList();
-
-        if (!duplicateQuestionIds.isEmpty()) {
-            String duplicateIds = duplicateQuestionIds.stream()
-                    .map(String::valueOf)
-                    .collect(Collectors.joining(", "));
-            String errorMessage = String.format(AppMessageConstant.DUPLICATE_QUESTION_ID.getMessage(), duplicateIds);
-            log.error(errorMessage);
-            throw new InvalidInputException(AppMessageConstant.DUPLICATE_QUESTION_ID, duplicateIds);
+        // Lấy mappings và kiểm tra
+        List<TestQuestionMappingEntity> mappings = testQuestionMappingRepository.findAllByTestId(submission.getTestId());
+        if (mappings == null || mappings.isEmpty()) {
+            throw new InvalidInputException(AppMessageConstant.TEST_NOT_FOUND, submission.getTestId());
         }
 
-        //Kiểm tra các questionId có thuộc testID không?
-        long testId = submission.getTestId();
-        // Bước 2: Lấy danh sách các questionId hợp lệ
-        List<TestQuestionMappingEntity> mappings = testQuestionMappingRepository.findAllByTestId(testId);
+
+        // Kiểm tra tính hợp lệ của questionId
         Set<Long> validQuestionIds = mappings.stream()
                 .map(TestQuestionMappingEntity::getQuestionId)
                 .collect(Collectors.toSet());
-
-        // Bước 2: Tìm các questionId không hợp lệ
         List<UserAnswer> invalidAnswers = submission.getAnswers().stream()
-                .filter(userAnswer -> !validQuestionIds.contains(userAnswer.getQuestionId()))
+                .filter(userAnswer -> userAnswer == null || !validQuestionIds.contains(userAnswer.getQuestionId()))
                 .toList();
-
         if (!invalidAnswers.isEmpty()) {
             String invalidQuestionIds = invalidAnswers.stream()
+                    .filter(Objects::nonNull)
                     .map(userAnswer -> userAnswer.getQuestionId().toString())
                     .collect(Collectors.joining(", "));
-            String errorMessage = String.format(
-                    AppMessageConstant.INVALID_QUESTION_ID.getMessage(),
-                    invalidQuestionIds,
-                    testId
-            );
+            String errorMessage = String.format(AppMessageConstant.INVALID_QUESTION_ID.getMessage(), invalidQuestionIds, submission.getTestId());
             log.error(errorMessage);
-            throw new InvalidInputException(AppMessageConstant.INVALID_QUESTION_ID, invalidQuestionIds, testId);
+            throw new InvalidInputException(AppMessageConstant.INVALID_QUESTION_ID, invalidQuestionIds, submission.getTestId());
         }
 
-        // Bước 3: Tao luu TestAttempt
-
-        TestAttemptEntity testAttempt = TestAttemptEntity.builder()
-                .testId(submission.getTestId())
-                .userId(submission.getUserId())
-                .attemptDate(submission.getAttemptDate())
-                .totalScore(0L)
-                .status("COMPLETED")
-                .build();
+        // Lưu TestAttemptEntity
+        TestAttemptEntity testAttempt = new TestAttemptEntity();
+        testAttempt.setTestId(submission.getTestId());
+        testAttempt.setUserId(submission.getUserId());
+        testAttempt.setAttemptDate(LocalDateTime.now());
         testAttempt = getRepo().save(testAttempt);
-
-        // Bước 4: Lưu AttemptDetail theo batch
         Long attemptId = testAttempt.getId();
-        List<AttemptDetailEntity> attemptDetails = new ArrayList<>();
-        for (TestQuestionMappingEntity mapping : mappings) { // Duyệt qua tất cả câu hỏi hợp lệ
-            AttemptDetailEntity attemptDetail = new AttemptDetailEntity();
-            attemptDetail.setAttemptId(attemptId);
-            attemptDetail.setQuestionId(mapping.getQuestionId());
 
-            // Lưu theo batch khi đạt kích thước lô
-            if (attemptDetails.size() >= BATCH_SIZE) {
-                attemptDetailRepository.saveAll(attemptDetails);
-                attemptDetails.clear();
-            }
+        log.info("Saved TestAttemptEntity for userId={} with attemptId={} at {}",
+                submission.getUserId(), attemptId, testAttempt.getAttemptDate());
+        // Lưu AttemptDetails và tính điểm sức khỏe
+        try {
+            return saveAttemptDetail(attemptId, mappings, submission.getAnswers());
+        } catch (Exception e) {
+            log.error("Failed to save attempt details for attemptId={} due to: {}", attemptId, e.getMessage(), e);
+            throw new InvalidInputException(AppMessageConstant.INTERNAL_SERVER_ERROR, "Failed to process attempt details");
         }
-        // Lưu các bản ghi còn lại (nếu có)
-        if (!attemptDetails.isEmpty()) {
-            attemptDetailRepository.saveAll(attemptDetails);
-        }
-        // Bước 5: Tính tổng điểm
-        Long totalScore = attemptDetailRepository.calculateTotalScore(attemptId);
-        if (totalScore == null) {
-            totalScore = 0L; // Xử lý trường hợp không có điểm
-        }
-
-        // Bước 7: Cập nhật total_score
-        testAttempt.setTotalScore(totalScore);
-        testAttempt = getRepo().save(testAttempt);
-        return testAttempt;
     }
 
     @Override
@@ -173,6 +144,98 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
         testAttempt = getRepo().save(testAttempt);
         return testAttempt;
     }
+    private void validateAnswerId(Map<Long, Long> answerMap, Map<Long, Long> answerScores){
+        List<Long> invalidAnswerId = answerMap.values().stream().filter(answerId -> !answerScores.containsKey(answerId)).toList();
+        if(!invalidAnswerId.isEmpty()){
+            String invalidIds = invalidAnswerId.stream().map(String:: valueOf).collect(Collectors.joining(", "));
+            throw new InvalidInputException(AppMessageConstant.INVALID_ANSWER_ID, invalidIds);
+        }
+    }
+    /*
+    * Phân loại tình trạng sức khỏe theo thang BDI
+    * */
+
+    private String calculateHealthStatus(int totalScore){
+        if(totalScore <= 13){
+            return "BÌNH THƯỜNG";
+        }
+        else if(totalScore <= 19){
+            return "NHẸ";
+        }
+        else if(totalScore <= 28){
+            return "TRUNG BÌNH";
+        }
+        else{
+            return "NẶNG";
+        }
+    }
+    // Lấy điểm của từng answerId từ mappings
+    private Map<Long, Long> getAnswersScore(List<TestQuestionMappingEntity> mappings){
+        // Lấy questionId từ TestQuestionMapping
+        List<Long> questionId = mappings.stream().map(TestQuestionMappingEntity::getQuestionId).toList();
+        List<AnswerEntity> answers  = answerRepository.findAllByQuestionIds(questionId);
+        return answers.stream().collect(Collectors.toMap(AnswerEntity::getId, answer -> answer.getScore() != null ? answer.getScore() : 0L,(existing,newvValue)-> existing));
+
+    }
+  @Transactional
+    public TestAttemptEntity saveAttemptDetail(Long attemptId, List<TestQuestionMappingEntity> mappings, List<UserAnswer> userAnswers) {
+
+      //Kiem tra du lieu dau vao
+        if(mappings == null || mappings.isEmpty()) {
+            throw new InvalidInputException(ErrorModel.of(HttpStatus.BAD_REQUEST.value()));
+        }
+        // Ánh xạ questionId tới answerId( lấy giá trị cuối nếu trùng lặp)
+      Map<Long, Long> answerMap = userAnswers.stream().collect(Collectors.toMap(UserAnswer:: getQuestionId, UserAnswer:: getAnswerId, (existing, newValue)-> newValue));
+        // lá tất cả các answerId  hợp lệ và tính điểm
+      Map<Long, Long> answerScore = getAnswersScore(mappings);
+      validateAnswerId(answerMap, answerScore);
+
+      List<AttemptDetailEntity> attemptDetails = new ArrayList<>();
+      int totalQuestions = mappings.size();
+      int totalScore = 0;
+      int count = 0;
+      for(TestQuestionMappingEntity mapping : mappings) {
+          AttemptDetailEntity attemptDetail  = new AttemptDetailEntity();
+          attemptDetail.setAttemptId(attemptId);
+          attemptDetail.setQuestionId(mapping.getQuestionId());
+          Long userAnswerId = answerMap.get(mapping.getQuestionId());
+          attemptDetail.setAnswerId(userAnswerId);
+// Tính điểm dựa trên answerId
+          if (userAnswerId != null) {
+              Long score = answerScore.get(userAnswerId);
+              totalScore += score;
+          }
+
+          attemptDetails.add(attemptDetail);
+          count++;
+
+          if (count >= BATCH_SIZE) {
+              attemptDetailRepository.saveAll(attemptDetails);
+              attemptDetailRepository.flush();
+              attemptDetails.clear();
+              count = 0;
+          }
+
+      }
+      if (!attemptDetails.isEmpty()) {
+          attemptDetailRepository.saveAll(attemptDetails);
+          attemptDetailRepository.flush();
+      }
+      // Phân loại tình trạng sức khỏe (theo thang BDI)
+      String healthStatus = calculateHealthStatus(totalScore);
+      log.info("User health assessment: Total score = {}, Status = {}, Total questions = {}", totalScore, healthStatus, totalQuestions);
+
+      // Lưu kết quả vào TestAttemptEntity
+      TestAttemptEntity testAttempt = getRepo().findById(attemptId)
+              .orElseThrow(() -> new InvalidInputException(AppMessageConstant.ENTITY_NOT_FOUND, attemptId));
+      testAttempt.setScore((double) totalScore);
+      testAttempt.setResult(healthStatus);
+      testAttempt.setTotalQuestions(totalQuestions); // Thêm trường để lưu tổng số câu hỏi
+      getRepo().save(testAttempt);
+
+
+      return testAttempt;
+  }
 
     @Override
     public TestAttemptEntity save(TestAttemptEntity entity) {

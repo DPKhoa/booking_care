@@ -33,5 +33,6 @@ public class TestAttemptEntity extends BaseEntity {
     private String status;
     private Double score; // Tổng điểm
     private String result; // Tình trạng sức khỏe
+    @Column(name = "total_question")
     private Integer totalQuestions; // Tổng số câu hỏi
 }

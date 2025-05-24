@@ -75,9 +75,7 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
                     AppMessageConstant.ENTITY_NOT_FOUND.getMessage(),
                     submission.getTestId()
             );
-            log.error(errorMessage);
-            throw new InvalidInputException(AppMessageConstant.USER_NOT_FOUND, submission.getTestId());
-        }
+            log.error(errorMessage);}
         //Kiểm tra người dùng
         if(!userRepository.existsById(submission.getUserId())){
             String errorMessage = String.format(
@@ -86,7 +84,6 @@ public class TestAttemptServiceImpl extends CommonServiceImpl<TestAttemptEntity,
             );
 
             log.error(errorMessage);
-            throw new InvalidInputException(AppMessageConstant.USER_NOT_FOUND, submission.getUserId());
         };
 
         // Lấy mappings và kiểm tra
